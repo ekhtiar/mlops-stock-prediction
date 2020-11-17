@@ -1,0 +1,6 @@
+fastparquet
+numpy
+pandas
+scikit-learn
+scipy
+yfinance
