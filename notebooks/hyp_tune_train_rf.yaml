@@ -1,0 +1,91 @@
+name: Hyp tune train rf
+description: Calculates sum of two arguments
+inputs:
+- {name: feature_data_path, type: String}
+- {name: tuned_model_store_path, type: String}
+- {name: metrics_path, type: String}
+- {name: holdout_days, type: Integer}
+- {name: random_iterations, type: Integer}
+- {name: random_params, type: String}
+implementation:
+  container:
+    image: python:3.7
+    command:
+    - sh
+    - -c
+    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+      'scikit-learn' 'fastparquet' 'fsspec' 'gcsfs' 'google-cloud-storage' || PIP_DISABLE_PIP_VERSION_CHECK=1
+      python3 -m pip install --quiet --no-warn-script-location 'scikit-learn' 'fastparquet'
+      'fsspec' 'gcsfs' 'google-cloud-storage' --user) && "$0" "$@"
+    - python3
+    - -u
+    - -c
+    - "def hyp_tune_train_rf(feature_data_path, tuned_model_store_path, metrics_path,\
+      \ \n                      holdout_days, random_iterations, random_params):\n\
+      \    '''Calculates sum of two arguments'''\n    import json\n    import pandas\
+      \ as pd\n    from datetime import datetime, timedelta\n    import _pickle as\
+      \ cPickle # save ML model\n    from google.cloud import storage # save the model\
+      \ to GCS\n    from sklearn.ensemble import RandomForestRegressor\n    from sklearn.metrics\
+      \ import mean_absolute_error, mean_squared_error\n    from sklearn.model_selection\
+      \ import train_test_split\n    from sklearn.model_selection import RandomizedSearchCV\n\
+      \    from sklearn.model_selection import GridSearchCV\n    from urllib.parse\
+      \ import urlparse\n\n    # read dataframe\n    sp500_timeboxed_feautres_df =\
+      \ pd.read_parquet(feature_data_path)\n\n    # this will be our training set\n\
+      \    sp500_train_df = sp500_timeboxed_feautres_df[sp500_timeboxed_feautres_df.index\
+      \ < (datetime.today() - timedelta(days=holdout_days))]\n\n    # get x and y\n\
+      \    x_train, y_train = sp500_train_df.drop('Close', axis=1), sp500_train_df['Close']\n\
+      \    # split the data for initial testing\n    X_train, X_test, Y_train, Y_test\
+      \ = train_test_split(x_train, y_train, test_size=0.2,random_state=786)\n\n \
+      \   # create random grid\n    random_grid = json.loads(random_params)\n\n  \
+      \  # train the model\n    rf = RandomForestRegressor()\n    # Random search\
+      \ of parameters, using 3 fold cross validation and search across 100 different\
+      \ combinations\n    rf_random = RandomizedSearchCV(estimator = rf, param_distributions\
+      \ = random_grid, n_iter = random_iterations, cv = 3, verbose=2, random_state=42,\
+      \ n_jobs = -1)\n    # Fit the random search model\n    rf_random.fit(x_train,\
+      \ y_train) # since we will use CV, we don't need to split data to train and\
+      \ test\n\n    # some initial testing\n    predictions_tuned_rf = rf_random.predict(X_test)\n\
+      \    mae_score = mean_absolute_error(Y_test, predictions_tuned_rf)\n    mse_score\
+      \ = mean_squared_error(Y_test, predictions_tuned_rf)\n    print('mean absolute\
+      \ error without optimization: %s' % mae_score)\n    print('mean squared error\
+      \ without optimization is: %s' % mse_score) \n\n    metrics = {\n        'metrics':\
+      \ \n        [{\n          'name': 'tuned-mae-score', # The name of the metric.\
+      \ Visualized as the column name in the runs table.\n          'numberValue':\
+      \  mae_score, # The value of the metric. Must be a numeric value.\n        },\n\
+      \        {\n          'name': 'tuned-mse-score', # The name of the metric. Visualized\
+      \ as the column name in the runs table.\n          'numberValue':  mse_score,\
+      \ # The value of the metric. Must be a numeric value.\n        },\n        ]\n\
+      \    }\n\n    temp_metrics_path = '/mlpipeline-metrics.json'\n    temp_model_path\
+      \ = '/tmp/model.pickle'\n\n    with open(temp_metrics_path, 'w') as f:\n   \
+      \     json.dump(metrics, f)\n\n    # write out output\n    # save the model\
+      \ into temp\n    with open(temp_model_path, 'wb') as f:\n        cPickle.dump(rf_random.best_estimator_,\
+      \ f, -1)\n\n    # get client and write to GCS\n    # parse model write path\
+      \ for GS\n    parse = urlparse(url=tuned_model_store_path, allow_fragments=False)\n\
+      \n    if parse.path[0] =='/':\n        model_path = parse.path[1:]\n    client\
+      \ = storage.Client()\n    bucket = client.get_bucket(parse.netloc)\n    model\
+      \ = bucket.blob(model_path)\n    model.upload_from_filename(temp_model_path)\n\
+      \    metrics = bucket.blob(metrics_path)\n    metrics.upload_from_filename(temp_metrics_path)\n\
+      \nimport argparse\n_parser = argparse.ArgumentParser(prog='Hyp tune train rf',\
+      \ description='Calculates sum of two arguments')\n_parser.add_argument(\"--feature-data-path\"\
+      , dest=\"feature_data_path\", type=str, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--tuned-model-store-path\", dest=\"tuned_model_store_path\"\
+      , type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+      --metrics-path\", dest=\"metrics_path\", type=str, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--holdout-days\", dest=\"holdout_days\", type=int, required=True,\
+      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--random-iterations\",\
+      \ dest=\"random_iterations\", type=int, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--random-params\", dest=\"random_params\", type=str,\
+      \ required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\
+      \n_outputs = hyp_tune_train_rf(**_parsed_args)\n"
+    args:
+    - --feature-data-path
+    - {inputValue: feature_data_path}
+    - --tuned-model-store-path
+    - {inputValue: tuned_model_store_path}
+    - --metrics-path
+    - {inputValue: metrics_path}
+    - --holdout-days
+    - {inputValue: holdout_days}
+    - --random-iterations
+    - {inputValue: random_iterations}
+    - --random-params
+    - {inputValue: random_params}

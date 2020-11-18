@@ -1,0 +1,61 @@
+name: Train vanilla rf
+description: Calculates sum of two arguments
+inputs:
+- {name: feature_data_path, type: String}
+- {name: vanilla_model_store_path, type: String}
+- {name: holdout_days, type: Integer}
+implementation:
+  container:
+    image: python:3.7
+    command:
+    - sh
+    - -c
+    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+      'scikit-learn' 'fastparquet' 'fsspec' 'gcsfs' 'google-cloud-storage' || PIP_DISABLE_PIP_VERSION_CHECK=1
+      python3 -m pip install --quiet --no-warn-script-location 'scikit-learn' 'fastparquet'
+      'fsspec' 'gcsfs' 'google-cloud-storage' --user) && "$0" "$@"
+    - python3
+    - -u
+    - -c
+    - "def train_vanilla_rf(feature_data_path, vanilla_model_store_path, holdout_days):\n\
+      \    '''Calculates sum of two arguments'''\n    import pandas as pd\n    from\
+      \ datetime import datetime, timedelta\n    import _pickle as cPickle # save\
+      \ ML model\n    from google.cloud import storage # save the model to GCS\n \
+      \   from sklearn.ensemble import RandomForestRegressor\n    from sklearn.metrics\
+      \ import mean_absolute_error, mean_squared_error\n    from sklearn.model_selection\
+      \ import train_test_split\n    from sklearn.model_selection import RandomizedSearchCV\n\
+      \    from sklearn.model_selection import GridSearchCV\n    from urllib.parse\
+      \ import urlparse\n\n    # read dataframe\n    sp500_timeboxed_feautres_df =\
+      \ pd.read_parquet(feature_data_path)\n\n    # this will be our training set\n\
+      \    sp500_train_df = sp500_timeboxed_feautres_df[sp500_timeboxed_feautres_df.index\
+      \ < (datetime.today() - timedelta(days=holdout_days))]\n\n    # get x and y\n\
+      \    x_train, y_train = sp500_train_df.drop('Close', axis=1), sp500_train_df['Close']\n\
+      \    # split the data for initial testing\n    X_train, X_test, Y_train, Y_test\
+      \ = train_test_split(x_train, y_train, test_size=0.2,random_state=786)\n\n \
+      \   # train the model\n    print('Training vanilla Random Forest models')\n\
+      \    print('Shape of X: %s, %s' % (len(x_train), len(x_train.columns)))\n  \
+      \  vanilla_rf = RandomForestRegressor()\n    vanilla_rf.fit(X_train, Y_train)\n\
+      \n    # some initial testing\n    predictions_vanilla_rf = vanilla_rf.predict(X_test)\n\
+      \    print('mean absolute error without optimization: %s' % mean_absolute_error(Y_test,\
+      \ predictions_vanilla_rf))\n    print('mean squared error without optimization\
+      \ is: %s' % mean_squared_error(Y_test, predictions_vanilla_rf)) \n\n    # write\
+      \ out output\n    # save the model into temp\n    with open('/tmp/model.pickle',\
+      \ 'wb') as f:\n        cPickle.dump(vanilla_rf, f, -1)\n\n    # get client and\
+      \ write to GCS\n    # parse model write path for GS\n    parse = urlparse(url=vanilla_model_store_path,\
+      \ allow_fragments=False)\n    if parse.path[0] =='/':\n        model_path =\
+      \ parse.path[1:]\n\n    client = storage.Client()\n    bucket = client.get_bucket(parse.netloc)\n\
+      \    blob = bucket.blob(model_path)\n    blob.upload_from_filename('/tmp/model.pickle')\n\
+      \nimport argparse\n_parser = argparse.ArgumentParser(prog='Train vanilla rf',\
+      \ description='Calculates sum of two arguments')\n_parser.add_argument(\"--feature-data-path\"\
+      , dest=\"feature_data_path\", type=str, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--vanilla-model-store-path\", dest=\"vanilla_model_store_path\"\
+      , type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+      --holdout-days\", dest=\"holdout_days\", type=int, required=True, default=argparse.SUPPRESS)\n\
+      _parsed_args = vars(_parser.parse_args())\n\n_outputs = train_vanilla_rf(**_parsed_args)\n"
+    args:
+    - --feature-data-path
+    - {inputValue: feature_data_path}
+    - --vanilla-model-store-path
+    - {inputValue: vanilla_model_store_path}
+    - --holdout-days
+    - {inputValue: holdout_days}
