@@ -1,0 +1,65 @@
+name: Download raw data
+description: download data from Yahoo Finance
+inputs:
+- {name: raw_data_path, type: String}
+outputs:
+- {name: Output, type: String}
+implementation:
+  container:
+    image: python:3.7
+    command:
+    - sh
+    - -c
+    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+      'yfinance' 'fastparquet' 'fsspec' 'gcsfs' || PIP_DISABLE_PIP_VERSION_CHECK=1
+      python3 -m pip install --quiet --no-warn-script-location 'yfinance' 'fastparquet'
+      'fsspec' 'gcsfs' --user) && "$0" "$@"
+    - python3
+    - -u
+    - -c
+    - |
+      def download_raw_data(raw_data_path):
+          '''download data from Yahoo Finance'''
+          import yfinance as yf
+          sp500_df = yf.download('^GSPC', progress=False)
+          print('Downloaded data...')
+          print(sp500_df.head())
+          print('trying to write to GS')
+          sp500_df.to_parquet(raw_data_path, compression='GZIP')
+          print('Done!')
+          return raw_data_path
+
+      def _serialize_str(str_value: str) -> str:
+          if not isinstance(str_value, str):
+              raise TypeError('Value "{}" has type "{}" instead of str.'.format(str(str_value), str(type(str_value))))
+          return str_value
+
+      import argparse
+      _parser = argparse.ArgumentParser(prog='Download raw data', description='download data from Yahoo Finance')
+      _parser.add_argument("--raw-data-path", dest="raw_data_path", type=str, required=True, default=argparse.SUPPRESS)
+      _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+      _parsed_args = vars(_parser.parse_args())
+      _output_files = _parsed_args.pop("_output_paths", [])
+
+      _outputs = download_raw_data(**_parsed_args)
+
+      _outputs = [_outputs]
+
+      _output_serializers = [
+          _serialize_str,
+
+      ]
+
+      import os
+      for idx, output_file in enumerate(_output_files):
+          try:
+              os.makedirs(os.path.dirname(output_file))
+          except OSError:
+              pass
+          with open(output_file, 'w') as f:
+              f.write(_output_serializers[idx](_outputs[idx]))
+    args:
+    - --raw-data-path
+    - {inputValue: raw_data_path}
+    - '----output-paths'
+    - {outputPath: Output}
