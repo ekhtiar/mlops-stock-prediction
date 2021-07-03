@@ -1,0 +1,40 @@
+# In this directory, run the following command to build this builder.
+# $ gcloud builds submit . --config=cloudbuild.yaml
+
+steps:
+# -----------------
+# Build get_data
+# -----------------
+- name: 'gcr.io/cloud-builders/docker'
+  id: BuildGetData
+  args:
+  - 'build'
+  - '--tag=gcr.io/$PROJECT_ID/stock-prediction/get-data'
+  - '--file=./Dockerfile'
+  - '.'
+  dir: 'containers/get-data'
+  
+- name: 'gcr.io/cloud-builders/docker'
+  id: PushGetData
+  args:
+  - 'push'
+  - 'gcr.io/$PROJECT_ID/stock-prediction/get-data'
+
+# ----------------------
+# Build extract_features
+# ----------------------
+- name: 'gcr.io/cloud-builders/docker'
+  id: BuildExtractFeatures
+  args:
+  - 'build'
+  - '--tag=gcr.io/$PROJECT_ID/stock-prediction/extract-features'
+  - '--file=./Dockerfile'
+  - '.'
+  dir: 'containers/extract-features'
+  
+- name: 'gcr.io/cloud-builders/docker'
+  id: PushExtractFeatures
+  args:
+  - 'push'
+  - 'gcr.io/$PROJECT_ID/stock-prediction/extract-features'
+  

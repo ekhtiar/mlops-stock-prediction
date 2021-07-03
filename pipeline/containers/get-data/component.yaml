@@ -1,0 +1,18 @@
+name: get data
+description: download s&p500 historical data from Yahoo Finance
+
+inputs:
+  - {name: ticker, type: String}
+  - {name: raw_data_path, type: String}
+
+implementation:
+  container:
+    image: gcr.io/gcp-awesome-228414/stock-prediction/get-data:latest
+    command: [
+      python3,
+      get_data.py,
+    ]
+    args: [
+      --ticker, {inputValue: ticker},
+      --raw_data_path, {inputValue: raw_data_path}
+    ]

@@ -1,0 +1,4 @@
+{
+    "python.formatting.provider": "autopep8",
+    "python.pythonPath": "C:\\Users\\ekhtiar\\Anaconda3\\envs\\mlops-stock-prediction\\python.exe"
+}

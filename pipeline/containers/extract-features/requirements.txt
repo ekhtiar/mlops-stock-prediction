@@ -1,0 +1,5 @@
+fastparquet
+numpy
+pandas
+fsspec
+gcsfs

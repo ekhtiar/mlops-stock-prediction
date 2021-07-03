@@ -1,0 +1,6 @@
+fastparquet
+numpy
+pandas
+yfinance
+fsspec
+gcsfs

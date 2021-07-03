@@ -1,0 +1,20 @@
+name: extract features
+description: Calculate features for our machine learning model
+
+inputs:
+  - {name: raw_data_path, type: String}
+  - {name: feature_data_path, type: String}
+  - {name: year_from, type: Integer}
+
+implementation:
+  container:
+    image: gcr.io/gcp-awesome-228414/stock-prediction/extract-features:latest
+    command: [
+      python3,
+      extract_features.py,
+    ]
+    args: [
+      --raw_data_path, {inputValue: raw_data_path},
+      --feature_data_path, {inputValue: feature_data_path},
+      --year_from, {inputValue: year_from}
+    ]
